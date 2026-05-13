@@ -1,8 +1,11 @@
 import streamlit as st
 from api_client import get
+from styles import get_css
 
 if "token" not in st.session_state:
     st.switch_page("app.py")
+
+st.markdown(get_css(), unsafe_allow_html=True)
 
 st.title("Dashboard")
 
