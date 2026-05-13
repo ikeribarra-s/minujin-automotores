@@ -45,6 +45,15 @@ def delete(path: str) -> None:
         _handle(client.delete(path, headers=_headers()))
 
 
+def upload_file(path: str, file_bytes: bytes, filename: str, content_type: str) -> Any:
+    with httpx.Client(base_url=_BASE_URL) as client:
+        return _handle(client.post(
+            path,
+            files={"file": (filename, file_bytes, content_type)},
+            headers=_headers(),
+        ))
+
+
 def login(username: str, password: str) -> bool:
     try:
         with httpx.Client(base_url=_BASE_URL) as client:

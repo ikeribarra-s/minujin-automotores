@@ -1,16 +1,23 @@
-from fastapi import APIRouter, HTTPException, status
+import bcrypt
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from backend.auth import create_access_token
-from backend.config import settings
+from backend.database import get_db
+from backend.models.usuario import Usuario
 from backend.schemas.auth import Token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
 @router.post("/token", response_model=Token)
-async def login(form: OAuth2PasswordRequestForm = Depends()):
-    if form.username != settings.APP_USERNAME or form.password != settings.APP_PASSWORD:
+async def login(
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Usuario).where(Usuario.username == form.username))
+    user = result.scalar_one_or_none()
+    if not user or not bcrypt.checkpw(form.password.encode(), user.password_hash.encode()):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales incorrectas")
-    token = create_access_token({"sub": form.username})
-    return Token(access_token=token)
+    return Token(access_token=create_access_token({"sub": user.username}))
