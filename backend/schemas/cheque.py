@@ -25,6 +25,7 @@ class ChequeBase(BaseModel):
     raw_ocr_text: Optional[str] = None
     raw_json: Optional[str] = None
     image_filename: Optional[str] = None
+    entrega: Optional[str] = None
 
 
 class ChequeCreate(ChequeBase):
@@ -34,6 +35,7 @@ class ChequeCreate(ChequeBase):
 class ChequeUpdate(BaseModel):
     estado: Optional[EstadoCheque] = None
     observaciones: Optional[str] = None
+    entrega: Optional[str] = None
 
 
 class ChequeResponse(ChequeBase):

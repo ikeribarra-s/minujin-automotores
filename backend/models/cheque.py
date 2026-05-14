@@ -38,3 +38,4 @@ class Cheque(Base):
     raw_ocr_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     raw_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image_filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    entrega: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)

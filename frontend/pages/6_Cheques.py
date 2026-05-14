@@ -41,7 +41,7 @@ with tab_cartera:
 
     if cheques:
         df = pd.DataFrame(cheques)
-        cols = ["id", "numero", "banco", "titular", "monto", "fecha_cobro", "estado"]
+        cols = ["id", "numero", "banco", "titular", "entrega", "monto", "fecha_cobro", "estado"]
         if "es_cpd" in df.columns:
             cols.append("es_cpd")
         if "discrepancia_monto" in df.columns:
@@ -129,6 +129,8 @@ with tab_escanear:
 
             es_cpd = st.checkbox("Cheque de pago diferido (CPD)", value=scan.get("es_cpd", False))
 
+            entrega = st.text_input("Entrega (quién entregó el cheque)", value="")
+
             st.markdown("**Asociar al cobro**")
             if not cobro_opts:
                 st.warning("No hay cobros disponibles. Creá un cobro primero.")
@@ -165,6 +167,7 @@ with tab_escanear:
                         "discrepancia_monto": scan.get("discrepancia_monto", False),
                         "raw_ocr_text":      scan.get("raw_ocr_text"),
                         "raw_json":          json.dumps(scan.get("raw_json")) if scan.get("raw_json") else None,
+                        "entrega":           entrega or None,
                     })
                     st.success("Cheque guardado correctamente.")
                     st.session_state.pop("scan_result", None)
@@ -181,6 +184,7 @@ with tab_registrar:
         numero  = c1.text_input("Número *")
         banco   = c2.text_input("Banco *")
         titular = st.text_input("Titular")
+        entrega_manual = st.text_input("Entrega (quién entregó el cheque)")
         c3, c4 = st.columns(2)
         monto       = c3.number_input("Monto *", min_value=0.01, format="%.2f")
         fecha_cobro = c4.date_input("Fecha de cobro *")
@@ -198,6 +202,7 @@ with tab_registrar:
                         "numero":      numero,
                         "banco":       banco,
                         "titular":     titular or None,
+                        "entrega":     entrega_manual or None,
                         "monto":       monto,
                         "fecha_cobro": str(fecha_cobro),
                         "fecha_emision": str(fecha_emision) if fecha_emision else None,
@@ -226,6 +231,7 @@ with tab_estado:
         with st.form("edit_cheque"):
             nuevo_estado  = st.selectbox("Nuevo estado", ESTADOS,
                                           index=ESTADOS.index(ch["estado"]))
+            entrega_edit  = st.text_input("Entrega", value=ch.get("entrega") or "")
             observaciones = st.text_area("Observaciones", value=ch.get("observaciones") or "")
 
             c_save, c_cancel = st.columns(2)
@@ -235,8 +241,9 @@ with tab_estado:
         if guardado:
             try:
                 patch(f"/cheques/{ch['id']}", {
-                    "estado": nuevo_estado,
-                    "observaciones": observaciones or None,
+                    "estado":         nuevo_estado,
+                    "entrega":        entrega_edit or None,
+                    "observaciones":  observaciones or None,
                 })
                 st.success("Cheque actualizado")
                 st.session_state.pop("edit_cheque", None)
