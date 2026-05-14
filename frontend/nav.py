@@ -1,12 +1,12 @@
 import streamlit as st
 
 _PAGES = [
-    ("pages/1_Inicio.py",   "Inicio",   "📊"),
-    ("pages/2_Stock.py",    "Stock",    "🚗"),
-    ("pages/3_Clientes.py", "Clientes", "👥"),
-    ("pages/4_Ventas.py",   "Ventas",   "📋"),
-    ("pages/5_Cobros.py",   "Cobros",   "💰"),
-    ("pages/6_Cheques.py",  "Cheques",  "🏦"),
+    ("pages/1_Inicio.py",   "Inicio"),
+    ("pages/2_Stock.py",    "Stock"),
+    ("pages/3_Clientes.py", "Clientes"),
+    ("pages/4_Ventas.py",   "Ventas"),
+    ("pages/5_Cobros.py",   "Cobros"),
+    ("pages/6_Cheques.py",  "Cheques"),
 ]
 
 _CSS = """
@@ -14,7 +14,6 @@ _CSS = """
 [data-testid="stSidebar"],
 [data-testid="collapsedControl"] { display: none !important; }
 
-/* Nav link base */
 div[data-testid="stPageLink"] a {
     display: flex !important;
     flex-direction: column;
@@ -43,11 +42,16 @@ div[data-testid="stPageLink"] a[aria-current="page"] {
     color: #FF6B2B !important;
     border-bottom-color: #FF6B2B !important;
 }
-
-/* Remove column gaps so links sit flush */
 div[data-testid="stPageLink"] {
     padding: 0 !important;
 }
+
+[data-testid="stForm"] small,
+.stTextInput small,
+.stNumberInput small,
+.stTextArea small,
+.stDateInput small,
+.stSelectbox small { display: none !important; }
 </style>
 """
 
@@ -57,7 +61,7 @@ _DIVIDER = "<hr style='margin: 0 0 1.2rem; border: none; border-top: 1px solid #
 def render_nav():
     st.markdown(_CSS, unsafe_allow_html=True)
     cols = st.columns(len(_PAGES))
-    for col, (path, label, icon) in zip(cols, _PAGES):
+    for col, (path, label) in zip(cols, _PAGES):
         with col:
-            st.page_link(path, label=label, icon=icon, use_container_width=True)
+            st.page_link(path, label=label, use_container_width=True)
     st.markdown(_DIVIDER, unsafe_allow_html=True)
