@@ -87,6 +87,11 @@ div[data-testid="stPageLink"] a[aria-current="page"] {
 
 
 def render_nav(active: str = ""):
+    # Force a clean rerun when the page changes so stale widget state doesn't bleed through
+    if st.session_state.get("_current_page") != active:
+        st.session_state["_current_page"] = active
+        st.rerun()
+
     st.markdown(_CSS, unsafe_allow_html=True)
     cols = st.columns(len(_PAGES))
     for col, (path, label) in zip(cols, _PAGES):
