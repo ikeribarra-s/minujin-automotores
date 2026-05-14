@@ -67,6 +67,5 @@ if "token" not in st.session_state:
 
     st.stop()
 
-# ── Authenticated home ──────────────────────────────────────────────────────
-st.title("Inicio")
-st.write("Seleccioná una sección en el menú lateral.")
+# ── Authenticated home — redirect to dashboard ───────────────────────────────
+st.switch_page("pages/1_Inicio.py")

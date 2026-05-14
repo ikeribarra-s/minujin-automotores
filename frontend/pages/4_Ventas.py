@@ -2,11 +2,13 @@ import streamlit as st
 import pandas as pd
 from api_client import get, post, put
 from styles import get_css
+from nav import render_nav
 
 if "token" not in st.session_state:
     st.switch_page("app.py")
 
 st.markdown(get_css(), unsafe_allow_html=True)
+render_nav()
 st.title("Ventas")
 
 FORMAS_PAGO = ["contado", "financiado", "permuta", "mixto"]

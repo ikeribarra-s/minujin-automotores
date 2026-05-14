@@ -5,11 +5,13 @@ import plotly.graph_objects as go
 from datetime import date, timedelta
 from api_client import get
 from styles import get_css
+from nav import render_nav
 
 if "token" not in st.session_state:
     st.switch_page("app.py")
 
 st.markdown(get_css(), unsafe_allow_html=True)
+render_nav()
 st.title("Dashboard")
 
 # ── DATA ──────────────────────────────────────────────────────────────────────
