@@ -45,8 +45,8 @@ def delete(path: str) -> None:
         _handle(client.delete(path, headers=_headers()))
 
 
-def upload_file(path: str, file_bytes: bytes, filename: str, content_type: str) -> Any:
-    with httpx.Client(base_url=_BASE_URL) as client:
+def upload_file(path: str, file_bytes: bytes, filename: str, content_type: str, timeout: float = 120.0) -> Any:
+    with httpx.Client(base_url=_BASE_URL, timeout=timeout) as client:
         return _handle(client.post(
             path,
             files={"file": (filename, file_bytes, content_type)},

@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     BACKEND_URL: str = "http://localhost:8000"
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""
+    MAX_UPLOAD_MB: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

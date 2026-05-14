@@ -1,4 +1,4 @@
-from sqlalchemy import String, Numeric, Text, Date, TIMESTAMP, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, Numeric, Text, Date, TIMESTAMP, ForeignKey, Enum as SAEnum, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import date, datetime
@@ -26,3 +26,15 @@ class Cheque(Base):
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Scanner-populated fields
+    monto_letras: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pagador_cuit: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    beneficiario: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    sucursal: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    localidad: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    es_cpd: Mapped[bool] = mapped_column(Boolean, default=False)
+    discrepancia_monto: Mapped[bool] = mapped_column(Boolean, default=False)
+    raw_ocr_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    raw_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
