@@ -14,6 +14,15 @@ _CSS = """
 [data-testid="stSidebar"],
 [data-testid="collapsedControl"] { display: none !important; }
 
+/* Prevent iOS auto-zoom on input focus (triggered when font-size < 16px) */
+input, textarea, select,
+input[type="text"], input[type="number"],
+input[type="email"], input[type="password"],
+input[type="search"], input[type="date"] {
+    font-size: 16px !important;
+}
+
+/* Hide "Press Enter to submit" hint */
 [data-testid="stForm"] small,
 .stTextInput small,
 .stNumberInput small,
@@ -21,10 +30,12 @@ _CSS = """
 .stDateInput small,
 .stSelectbox small { display: none !important; }
 
-/* Force the nav column block horizontal and scrollable on mobile */
+/* Nav: horizontal only, no vertical scroll */
 div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPageLink"]) {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
+    overflow-y: hidden !important;
+    touch-action: pan-x !important;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
