@@ -8,7 +8,7 @@ if "token" not in st.session_state:
     st.switch_page("app.py")
 
 st.markdown(get_css(), unsafe_allow_html=True)
-render_nav()
+render_nav("Clientes")
 st.title("Clientes")
 
 tab_lista, tab_agregar, tab_editar = st.tabs(["Lista", "Agregar", "Editar"])

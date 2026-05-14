@@ -8,7 +8,7 @@ if "token" not in st.session_state:
     st.switch_page("app.py")
 
 st.markdown(get_css(), unsafe_allow_html=True)
-render_nav()
+render_nav("Ventas")
 st.title("Ventas")
 
 FORMAS_PAGO = ["contado", "financiado", "permuta", "mixto"]
