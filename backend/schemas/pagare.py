@@ -6,6 +6,7 @@ from backend.models.enums import EstadoPagare
 
 
 class PagareBase(BaseModel):
+    venta_id: Optional[int] = None
     numero: str
     monto: Decimal
     vencimiento: date
@@ -22,6 +23,7 @@ class PagareCreate(PagareBase):
 
 
 class PagareUpdate(BaseModel):
+    venta_id: Optional[int] = None
     numero: Optional[str] = None
     monto: Optional[Decimal] = None
     vencimiento: Optional[date] = None

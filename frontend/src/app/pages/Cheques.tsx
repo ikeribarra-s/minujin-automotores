@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Upload, ScanLine, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { api, uploadFile, parseDecimal } from "../api";
-import type { Cheque, ScanResult } from "../api";
+import type { Cheque, ScanResult, VentaLabel } from "../api";
 import { formatCurrency, formatDate } from "../lib/utils";
 import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
@@ -30,6 +30,7 @@ interface ScanFormData {
   observaciones: string;
   raw_ocr_text: string;
   warning: string | null;
+  venta_id: number | null;
 }
 
 function scanResultToForm(r: ScanResult): ScanFormData {
@@ -52,6 +53,7 @@ function scanResultToForm(r: ScanResult): ScanFormData {
     observaciones: '',
     raw_ocr_text: r.raw_ocr_text,
     warning: r.warning,
+    venta_id: null,
   };
 }
 
@@ -84,11 +86,13 @@ const emptyCheque = {
   monto: '',
   fecha_cobro: '',
   fecha_emision: '',
+  venta_id: null as number | null,
 };
 
 export default function Cheques() {
   const [activeTab, setActiveTab] = useState<'cartera' | 'escanear' | 'registrar'>('cartera');
   const [cheques, setCheques] = useState<Cheque[]>([]);
+  const [ventaLabels, setVentaLabels] = useState<VentaLabel[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('todos');
   const [editingCheque, setEditingCheque] = useState<Cheque | null>(null);
@@ -105,12 +109,25 @@ export default function Cheques() {
   const [nuevoCheque, setNuevoCheque] = useState(emptyCheque);
 
   useEffect(() => {
-    api
-      .get('/cheques/')
-      .then(setCheques)
+    Promise.all([
+      api.get('/cheques/'),
+      api.get('/ventas/labels'),
+    ])
+      .then(([c, vl]) => {
+        setCheques(c);
+        setVentaLabels(vl);
+      })
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const ventaOpts = [
+    { value: '0', label: 'Sin venta asociada' },
+    ...ventaLabels.map((v) => ({ value: v.id.toString(), label: v.label })),
+  ];
+
+  const getVentaLabel = (id: number | null) =>
+    id ? ventaLabels.find((v) => v.id === id)?.label ?? null : null;
 
   const filteredCheques = cheques.filter((cheque) =>
     filter === 'todos' ? true : cheque.estado === filter
@@ -123,6 +140,7 @@ export default function Cheques() {
     setSaving(true);
     try {
       const updated = await api.patch(`/cheques/${editingCheque.id}`, {
+        venta_id: editingCheque.venta_id || undefined,
         numero: editingCheque.numero,
         banco: editingCheque.banco,
         titular: editingCheque.titular || undefined,
@@ -179,6 +197,7 @@ export default function Cheques() {
     setSaving(true);
     try {
       const created = await api.post('/cheques/', {
+        venta_id: scanForm.venta_id || undefined,
         numero: scanForm.numero,
         banco: scanForm.banco,
         monto: parseFloat(scanForm.monto) || 0,
@@ -217,6 +236,7 @@ export default function Cheques() {
     setSaving(true);
     try {
       const created = await api.post('/cheques/', {
+        venta_id: nuevoCheque.venta_id || undefined,
         numero: nuevoCheque.numero,
         banco: nuevoCheque.banco,
         monto: parseFloat(nuevoCheque.monto),
@@ -284,33 +304,39 @@ export default function Cheques() {
             </div>
           ) : (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm divide-y divide-gray-200">
-              {filteredCheques.map((cheque) => (
-                <div key={cheque.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        {cheque.banco} N° {cheque.numero}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {cheque.titular}
-                        {cheque.entrega && ` · ${cheque.entrega}`}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {formatCurrency(parseDecimal(cheque.monto))}
-                      </p>
-                      <p className="text-sm text-gray-500">{formatDate(cheque.fecha_cobro)}</p>
-                      <StatusBadge status={cheque.estado} className="mt-2" />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button variant="secondary" onClick={() => handleEditCheque(cheque)}>
-                        Editar
-                      </Button>
+              {filteredCheques.map((cheque) => {
+                const ventaLabel = getVentaLabel(cheque.venta_id);
+                return (
+                  <div key={cheque.id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          {cheque.banco} N° {cheque.numero}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {cheque.titular}
+                          {cheque.entrega && ` · ${cheque.entrega}`}
+                        </p>
+                        {ventaLabel && (
+                          <p className="text-xs text-[#FF6B2B] mt-1 font-medium">{ventaLabel}</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {formatCurrency(parseDecimal(cheque.monto))}
+                        </p>
+                        <p className="text-sm text-gray-500">{formatDate(cheque.fecha_cobro)}</p>
+                        <StatusBadge status={cheque.estado} className="mt-2" />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button variant="secondary" onClick={() => handleEditCheque(cheque)}>
+                          Editar
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {filteredCheques.length === 0 && (
                 <div className="p-8 text-center text-gray-500">No hay cheques registrados</div>
               )}
@@ -330,7 +356,6 @@ export default function Cheques() {
 
           {!scanForm ? (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 space-y-4">
-              {/* hidden inputs */}
               <input
                 ref={galleryInputRef}
                 type="file"
@@ -416,6 +441,13 @@ export default function Cheques() {
                 </pre>
               </details>
 
+              <Select
+                label="Venta asociada"
+                options={ventaOpts}
+                value={(scanForm.venta_id ?? 0).toString()}
+                onChange={(e) => setScanForm({ ...scanForm, venta_id: parseInt(e.target.value) || null })}
+              />
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
                   label="Tipo"
@@ -470,6 +502,13 @@ export default function Cheques() {
 
       {activeTab === 'registrar' && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+          <Select
+            label="Venta asociada"
+            options={ventaOpts}
+            value={(nuevoCheque.venta_id ?? 0).toString()}
+            onChange={(e) => setNuevoCheque({ ...nuevoCheque, venta_id: parseInt(e.target.value) || null })}
+            className="mb-4"
+          />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <Input label="Número" value={nuevoCheque.numero} onChange={(e) => setNuevoCheque({ ...nuevoCheque, numero: e.target.value })} required />
             <Input label="Banco" value={nuevoCheque.banco} onChange={(e) => setNuevoCheque({ ...nuevoCheque, banco: e.target.value })} required />
@@ -490,6 +529,12 @@ export default function Cheques() {
       {editingCheque && (
         <Modal isOpen={true} onClose={() => setEditingCheque(null)} title="Editar cheque">
           <div className="space-y-4">
+            <Select
+              label="Venta asociada"
+              options={ventaOpts}
+              value={(editingCheque.venta_id ?? 0).toString()}
+              onChange={(e) => setEditingCheque({ ...editingCheque, venta_id: parseInt(e.target.value) || null })}
+            />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input label="Número" value={editingCheque.numero} onChange={(e) => setEditingCheque({ ...editingCheque, numero: e.target.value })} />
               <Input label="Banco" value={editingCheque.banco} onChange={(e) => setEditingCheque({ ...editingCheque, banco: e.target.value })} />

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Upload, ScanLine, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { api, uploadFile, parseDecimal } from "../api";
-import type { Pagare, ScanResult } from "../api";
+import type { Pagare, ScanResult, VentaLabel } from "../api";
 import { formatCurrency, formatDate } from "../lib/utils";
 import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
@@ -21,6 +21,7 @@ interface ScanFormData {
   observaciones: string;
   raw_ocr_text: string;
   warning: string | null;
+  venta_id: number | null;
 }
 
 function scanResultToForm(r: ScanResult): ScanFormData {
@@ -34,6 +35,7 @@ function scanResultToForm(r: ScanResult): ScanFormData {
     observaciones: '',
     raw_ocr_text: r.raw_ocr_text,
     warning: r.warning,
+    venta_id: null,
   };
 }
 
@@ -65,11 +67,13 @@ const emptyPagare = {
   firmante: '',
   calle: '',
   localidad: '',
+  venta_id: null as number | null,
 };
 
 export default function Pagares() {
   const [activeTab, setActiveTab] = useState<'cartera' | 'escanear' | 'registrar'>('cartera');
   const [pagares, setPagares] = useState<Pagare[]>([]);
+  const [ventaLabels, setVentaLabels] = useState<VentaLabel[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('todos');
   const [editingPagare, setEditingPagare] = useState<Pagare | null>(null);
@@ -86,12 +90,25 @@ export default function Pagares() {
   const [nuevoPagare, setNuevoPagare] = useState(emptyPagare);
 
   useEffect(() => {
-    api
-      .get('/pagares/')
-      .then(setPagares)
+    Promise.all([
+      api.get('/pagares/'),
+      api.get('/ventas/labels'),
+    ])
+      .then(([p, vl]) => {
+        setPagares(p);
+        setVentaLabels(vl);
+      })
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const ventaOpts = [
+    { value: '0', label: 'Sin venta asociada' },
+    ...ventaLabels.map((v) => ({ value: v.id.toString(), label: v.label })),
+  ];
+
+  const getVentaLabel = (id: number | null) =>
+    id ? ventaLabels.find((v) => v.id === id)?.label ?? null : null;
 
   const filteredPagares = pagares.filter((p) =>
     filter === 'todos' ? true : p.estado === filter
@@ -102,6 +119,7 @@ export default function Pagares() {
     setSaving(true);
     try {
       const updated = await api.patch(`/pagares/${editingPagare.id}`, {
+        venta_id: editingPagare.venta_id || undefined,
         numero: editingPagare.numero,
         monto: parseDecimal(editingPagare.monto),
         vencimiento: editingPagare.vencimiento,
@@ -154,6 +172,7 @@ export default function Pagares() {
     setSaving(true);
     try {
       const created = await api.post('/pagares/', {
+        venta_id: scanForm.venta_id || undefined,
         numero: scanForm.numero,
         monto: parseFloat(scanForm.monto) || 0,
         vencimiento: scanForm.vencimiento,
@@ -184,6 +203,7 @@ export default function Pagares() {
     setSaving(true);
     try {
       const created = await api.post('/pagares/', {
+        venta_id: nuevoPagare.venta_id || undefined,
         numero: nuevoPagare.numero,
         monto: parseFloat(nuevoPagare.monto),
         vencimiento: nuevoPagare.vencimiento,
@@ -249,36 +269,42 @@ export default function Pagares() {
             </div>
           ) : (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm divide-y divide-gray-200">
-              {filteredPagares.map((pagare) => (
-                <div key={pagare.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        Pagaré N° {pagare.numero}
-                      </h3>
-                      <p className="text-sm text-gray-600">
-                        {pagare.firmante ?? '—'}
-                        {pagare.localidad && ` · ${pagare.localidad}`}
-                      </p>
-                      {pagare.calle && (
-                        <p className="text-xs text-gray-500">{pagare.calle}</p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {formatCurrency(parseDecimal(pagare.monto))}
-                      </p>
-                      <p className="text-sm text-gray-500">Vence: {formatDate(pagare.vencimiento)}</p>
-                      <StatusBadge status={pagare.estado} className="mt-2" />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button variant="secondary" onClick={() => setEditingPagare(pagare)}>
-                        Editar
-                      </Button>
+              {filteredPagares.map((pagare) => {
+                const ventaLabel = getVentaLabel(pagare.venta_id);
+                return (
+                  <div key={pagare.id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          Pagaré N° {pagare.numero}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {pagare.firmante ?? '—'}
+                          {pagare.localidad && ` · ${pagare.localidad}`}
+                        </p>
+                        {pagare.calle && (
+                          <p className="text-xs text-gray-500">{pagare.calle}</p>
+                        )}
+                        {ventaLabel && (
+                          <p className="text-xs text-[#FF6B2B] mt-1 font-medium">{ventaLabel}</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-gray-900">
+                          {formatCurrency(parseDecimal(pagare.monto))}
+                        </p>
+                        <p className="text-sm text-gray-500">Vence: {formatDate(pagare.vencimiento)}</p>
+                        <StatusBadge status={pagare.estado} className="mt-2" />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button variant="secondary" onClick={() => setEditingPagare(pagare)}>
+                          Editar
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {filteredPagares.length === 0 && (
                 <div className="p-8 text-center text-gray-500">No hay pagarés registrados</div>
               )}
@@ -383,6 +409,13 @@ export default function Pagares() {
                 </pre>
               </details>
 
+              <Select
+                label="Venta asociada"
+                options={ventaOpts}
+                value={(scanForm.venta_id ?? 0).toString()}
+                onChange={(e) => setScanForm({ ...scanForm, venta_id: parseInt(e.target.value) || null })}
+              />
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="Número (ej: 1/10)"
@@ -443,6 +476,13 @@ export default function Pagares() {
 
       {activeTab === 'registrar' && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+          <Select
+            label="Venta asociada"
+            options={ventaOpts}
+            value={(nuevoPagare.venta_id ?? 0).toString()}
+            onChange={(e) => setNuevoPagare({ ...nuevoPagare, venta_id: parseInt(e.target.value) || null })}
+            className="mb-4"
+          />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <Input
               label="Número (ej: 1/10)"
@@ -493,6 +533,12 @@ export default function Pagares() {
       {editingPagare && (
         <Modal isOpen={true} onClose={() => setEditingPagare(null)} title="Editar pagaré">
           <div className="space-y-4">
+            <Select
+              label="Venta asociada"
+              options={ventaOpts}
+              value={(editingPagare.venta_id ?? 0).toString()}
+              onChange={(e) => setEditingPagare({ ...editingPagare, venta_id: parseInt(e.target.value) || null })}
+            />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Número"

@@ -6,10 +6,29 @@ from backend.database import get_db
 from backend.auth import verify_token
 from backend.models.venta import Venta
 from backend.models.vehiculo import Vehiculo
+from backend.models.cliente import Cliente
 from backend.models.enums import EstadoVehiculo
-from backend.schemas.venta import VentaCreate, VentaUpdate, VentaResponse
+from backend.schemas.venta import VentaCreate, VentaUpdate, VentaResponse, VentaLabel
 
 router = APIRouter(prefix="/ventas", tags=["Ventas"])
+
+
+@router.get("/labels", response_model=List[VentaLabel])
+async def list_venta_labels(db: AsyncSession = Depends(get_db), _: str = Depends(verify_token)):
+    rows = await db.execute(
+        select(Venta.id, Cliente.nombre, Cliente.apellido, Vehiculo.marca, Vehiculo.modelo, Vehiculo.patente)
+        .join(Cliente, Venta.cliente_id == Cliente.id)
+        .join(Vehiculo, Venta.vehiculo_id == Vehiculo.id)
+        .order_by(Venta.fecha_venta.desc())
+    )
+    return [
+        VentaLabel(
+            id=row.id,
+            label=f"{row.nombre} {row.apellido} · {row.marca} {row.modelo}"
+            + (f" · {row.patente}" if row.patente else ""),
+        )
+        for row in rows
+    ]
 
 
 @router.get("/", response_model=List[VentaResponse])

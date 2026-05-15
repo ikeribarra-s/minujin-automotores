@@ -132,6 +132,7 @@ export interface Cobro {
 export interface Cheque {
   id: number
   cobro_id: number | null
+  venta_id: number | null
   numero: string
   banco: string
   titular: string | null
@@ -156,6 +157,7 @@ export interface Cheque {
 
 export interface Pagare {
   id: number
+  venta_id: number | null
   numero: string
   monto: string
   vencimiento: string
@@ -168,6 +170,11 @@ export interface Pagare {
   image_filename: string | null
   created_at: string
   updated_at: string
+}
+
+export interface VentaLabel {
+  id: number
+  label: string
 }
 
 export interface ScanResult {

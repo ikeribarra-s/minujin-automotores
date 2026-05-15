@@ -1,4 +1,4 @@
-from sqlalchemy import String, Numeric, Text, Date, TIMESTAMP, Enum as SAEnum
+from sqlalchemy import String, Numeric, Text, Date, TIMESTAMP, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import date, datetime
@@ -12,6 +12,7 @@ class Pagare(Base):
     __tablename__ = "pagare"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    venta_id: Mapped[Optional[int]] = mapped_column(ForeignKey("venta.id"), nullable=True)
     numero: Mapped[str] = mapped_column(String(20))
     monto: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     vencimiento: Mapped[date] = mapped_column(Date)
