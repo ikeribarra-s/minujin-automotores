@@ -11,7 +11,7 @@ from backend.models.enums import EstadoCheque
 from backend.schemas.cheque import ChequeCreate, ChequeUpdate, ChequeResponse, ScanResult
 from backend.config import settings
 from backend.scanner.utils import validate_and_prepare_image
-from backend.scanner.ocr import extract_text_google_vision, extract_text_fallback, OCRError
+from backend.scanner.ocr import extract_text_claude, OCRError
 from backend.scanner.extractor import extract_fields, get_anthropic_client
 
 logger = logging.getLogger(__name__)
@@ -84,25 +84,13 @@ async def scan_cheque(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # OCR: try Google Vision, fall back to Claude vision
-    ocr_text = ""
-    warning = None
+    # OCR: Claude vision
     anthropic_client = get_anthropic_client()
-
     try:
-        ocr_text = await extract_text_google_vision(image_bytes)
-        if not ocr_text.strip():
-            logger.info("Google Vision returned empty text, falling back to Claude")
-            ocr_text = await extract_text_fallback(image_bytes, anthropic_client)
-            warning = "OCR via Claude (Google Vision returned vacío)"
+        ocr_text = await extract_text_claude(image_bytes, anthropic_client)
     except OCRError as e:
-        logger.warning("Google Vision failed (%s), falling back to Claude", e)
-        try:
-            ocr_text = await extract_text_fallback(image_bytes, anthropic_client)
-            warning = "OCR via Claude (Google Vision no disponible)"
-        except Exception as fallback_err:
-            logger.error("OCR fallback also failed: %s", fallback_err)
-            raise HTTPException(status_code=502, detail="No se pudo extraer texto de la imagen")
+        logger.error("Claude OCR failed: %s", e)
+        raise HTTPException(status_code=502, detail="No se pudo extraer texto de la imagen")
 
     # Extract structured fields with Claude
     try:
@@ -131,5 +119,5 @@ async def scan_cheque(
         discrepancia_monto=fields.get("discrepancia_monto", False) or False,
         raw_ocr_text=ocr_text,
         raw_json=fields,
-        warning=warning,
+        warning=None,
     )

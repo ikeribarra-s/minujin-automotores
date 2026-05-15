@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Upload, ScanLine } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Upload, ScanLine, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { api, uploadFile, parseDecimal } from "../api";
 import type { Cheque, ScanResult } from "../api";
@@ -55,6 +55,27 @@ function scanResultToForm(r: ScanResult): ScanFormData {
   };
 }
 
+async function compressImage(file: File, maxWidth = 1920, quality = 0.85): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => resolve(new File([blob!], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' })),
+        'image/jpeg',
+        quality
+      );
+    };
+    img.src = url;
+  });
+}
+
 const emptyCheque = {
   numero: '',
   banco: '',
@@ -77,6 +98,9 @@ export default function Cheques() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [scanningInProgress, setScanningInProgress] = useState(false);
   const [scanForm, setScanForm] = useState<ScanFormData | null>(null);
+  const [compressing, setCompressing] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [nuevoCheque, setNuevoCheque] = useState(emptyCheque);
 
@@ -122,13 +146,19 @@ export default function Cheques() {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadedFile(file);
-    const reader = new FileReader();
-    reader.onload = (event) => setUploadedImage(event.target?.result as string);
-    reader.readAsDataURL(file);
+    setCompressing(true);
+    try {
+      const compressed = await compressImage(file);
+      setUploadedFile(compressed);
+      const reader = new FileReader();
+      reader.onload = (event) => setUploadedImage(event.target?.result as string);
+      reader.readAsDataURL(compressed);
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const handleScanDocument = async () => {
@@ -300,43 +330,68 @@ export default function Cheques() {
 
           {!scanForm ? (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 space-y-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-sm text-gray-600 mb-2">Formatos aceptados: JPG, JPEG, PNG, WEBP</p>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  className="hidden"
-                  id="cheque-upload"
-                  onChange={handleImageUpload}
-                />
-                <label htmlFor="cheque-upload">
-                  <Button variant="secondary" className="cursor-pointer">
-                    Seleccionar archivo
-                  </Button>
-                </label>
-              </div>
+              {/* hidden inputs */}
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
 
-              {uploadedImage && (
+              {!uploadedImage ? (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center space-y-4">
+                  <Upload className="w-12 h-12 text-gray-400 mx-auto" />
+                  <p className="text-sm text-gray-500">Seleccioná una foto del cheque o tomá una con la cámara</p>
+                  <div className="flex gap-3 justify-center flex-wrap">
+                    <Button variant="secondary" onClick={() => galleryInputRef.current?.click()}>
+                      <Upload className="w-4 h-4 mr-2 inline" />
+                      Galería
+                    </Button>
+                    <Button variant="secondary" onClick={() => cameraInputRef.current?.click()}>
+                      <Camera className="w-4 h-4 mr-2 inline" />
+                      Tomar foto
+                    </Button>
+                  </div>
+                </div>
+              ) : (
                 <div className="space-y-4">
                   <div className="rounded-lg overflow-hidden border border-gray-200">
                     <img src={uploadedImage} alt="Cheque escaneado" className="w-full" />
                   </div>
-                  <Button
-                    variant="primary"
-                    onClick={handleScanDocument}
-                    disabled={scanningInProgress}
-                    className="w-full"
-                  >
-                    {scanningInProgress ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <ScanLine className="w-5 h-5 animate-pulse" />
-                        Procesando con IA...
-                      </span>
-                    ) : (
-                      'Escanear documento'
-                    )}
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="primary"
+                      onClick={handleScanDocument}
+                      disabled={scanningInProgress || compressing}
+                      className="flex-1"
+                    >
+                      {compressing ? (
+                        'Comprimiendo imagen...'
+                      ) : scanningInProgress ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <ScanLine className="w-5 h-5 animate-pulse" />
+                          Procesando con IA...
+                        </span>
+                      ) : (
+                        'Escanear documento'
+                      )}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => { setUploadedImage(null); setUploadedFile(null); }}
+                    >
+                      Cambiar foto
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
