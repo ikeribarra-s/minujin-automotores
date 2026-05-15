@@ -6,7 +6,7 @@ from backend.models.enums import EstadoCheque
 
 
 class ChequeBase(BaseModel):
-    cobro_id: int
+    cobro_id: Optional[int] = None
     numero: str
     banco: str
     titular: Optional[str] = None

@@ -12,7 +12,7 @@ class Cheque(Base):
     __tablename__ = "cheque"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    cobro_id: Mapped[int] = mapped_column(ForeignKey("cobro.id"))
+    cobro_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cobro.id"), nullable=True)
     numero: Mapped[str] = mapped_column(String(20))
     banco: Mapped[str] = mapped_column(String(80))
     titular: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)

@@ -14,19 +14,6 @@ st.title("Cartera de Cheques")
 
 ESTADOS = ["pendiente", "cobrado", "depositado", "rechazado"]
 
-try:
-    cobros   = get("/cobros/")
-    clientes = get("/clientes/")
-except Exception as e:
-    st.error(str(e))
-    st.stop()
-
-cliente_map = {c["id"]: f"{c['apellido']}, {c['nombre']}" for c in clientes}
-cobro_opts  = {
-    f"Cobro #{c['id']} — {cliente_map.get(c['cliente_id'], '?')} — ${c['monto']}": c["id"]
-    for c in cobros
-}
-
 @st.dialog("Editar cheque", width="large")
 def dialogo_editar_cheque(ch: dict):
     with st.form("form_edit_cheque"):
@@ -223,29 +210,17 @@ with tab_escanear:
             fecha_cobro   = c10.date_input("Fecha vencimiento / cobro", value=fecha_cobro_default or dt.date.today())
 
             es_cpd = st.checkbox("Cheque de pago diferido (CPD)", value=scan.get("es_cpd", False))
-
             entrega = st.text_input("Entrega (quién entregó el cheque)", value="")
-
-            st.markdown("**Asociar al cobro**")
-            if not cobro_opts:
-                st.warning("No hay cobros disponibles. Creá un cobro primero.")
-                cobro_sel = None
-            else:
-                cobro_sel = st.selectbox("Cobro *", list(cobro_opts.keys()))
-
             observaciones = st.text_area("Observaciones")
 
             submitted = st.form_submit_button("Guardar cheque", type="primary", use_container_width=True)
 
         if submitted:
-            if not cobro_opts or cobro_sel is None:
-                st.error("Seleccioná un cobro")
-            elif not numero or not banco:
+            if not numero or not banco:
                 st.error("Número y banco son obligatorios")
             else:
                 try:
                     post("/cheques/", {
-                        "cobro_id":          cobro_opts[cobro_sel],
                         "numero":            numero,
                         "banco":             banco,
                         "titular":           titular or None,
@@ -273,8 +248,6 @@ with tab_escanear:
 # ── REGISTRAR MANUAL ──────────────────────────────────────────────────────────
 with tab_registrar:
     with st.form("nuevo_cheque"):
-        cobro_sel = st.selectbox("Cobro *",
-            list(cobro_opts.keys()) if cobro_opts else ["Sin cobros"])
         c1, c2 = st.columns(2)
         numero  = c1.text_input("Número *")
         banco   = c2.text_input("Banco *")
@@ -286,14 +259,11 @@ with tab_registrar:
         fecha_emision = st.date_input("Fecha de emisión (opcional)", value=None)
 
         if st.form_submit_button("Registrar cheque", use_container_width=True):
-            if not cobro_opts:
-                st.error("No hay cobros disponibles")
-            elif not numero or not banco:
+            if not numero or not banco:
                 st.error("Número y banco son obligatorios")
             else:
                 try:
                     post("/cheques/", {
-                        "cobro_id":    cobro_opts[cobro_sel],
                         "numero":      numero,
                         "banco":       banco,
                         "titular":     titular or None,
@@ -306,4 +276,3 @@ with tab_registrar:
                     st.rerun()
                 except Exception as e:
                     st.error(str(e))
-
