@@ -18,6 +18,13 @@ class CobroCreate(CobroBase):
     pass
 
 
+class CobroUpdate(BaseModel):
+    monto: Optional[Decimal] = None
+    concepto: Optional[ConceptoCobro] = None
+    forma_pago: Optional[FormaPagoCobro] = None
+    observaciones: Optional[str] = None
+
+
 class CobroResponse(CobroBase):
     id: int
     fecha: date

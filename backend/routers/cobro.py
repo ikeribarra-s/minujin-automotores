@@ -6,7 +6,7 @@ from backend.database import get_db
 from backend.auth import verify_token
 from backend.models.cobro import Cobro
 from backend.models.venta import Venta
-from backend.schemas.cobro import CobroCreate, CobroResponse
+from backend.schemas.cobro import CobroCreate, CobroUpdate, CobroResponse
 
 router = APIRouter(prefix="/cobros", tags=["Cobros"])
 
@@ -56,3 +56,20 @@ async def create_cobro(
     await db.commit()
     await db.refresh(cobro)
     return cobro
+
+
+@router.patch("/{id}", response_model=CobroResponse)
+async def update_cobro(
+    id: int,
+    data: CobroUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_token),
+):
+    c = await db.get(Cobro, id)
+    if not c:
+        raise HTTPException(status_code=404, detail="Cobro no encontrado")
+    for field, val in data.model_dump(exclude_unset=True).items():
+        setattr(c, field, val)
+    await db.commit()
+    await db.refresh(c)
+    return c
