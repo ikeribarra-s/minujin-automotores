@@ -124,6 +124,18 @@ export default function Dashboard() {
     };
   });
 
+  const chequesVencidos = chequesData
+    .filter((ch) => new Date(ch.fecha_cobro).getTime() < now.getTime())
+    .sort((a, b) => new Date(a.fecha_cobro).getTime() - new Date(b.fecha_cobro).getTime());
+
+  const chequesPor7d = chequesData
+    .filter((ch) => {
+      const diff = new Date(ch.fecha_cobro).getTime() - now.getTime();
+      const days = diff / (1000 * 60 * 60 * 24);
+      return days >= 0 && days <= 7;
+    })
+    .sort((a, b) => new Date(a.fecha_cobro).getTime() - new Date(b.fecha_cobro).getTime());
+
   const chequesProximos = chequesData
     .filter((ch) => {
       const diff = new Date(ch.fecha_cobro).getTime() - now.getTime();
@@ -181,6 +193,34 @@ export default function Dashboard() {
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+
+      {chequesVencidos.length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-4 flex items-start gap-3">
+          <span className="text-red-500 text-xl leading-none">⚠</span>
+          <div>
+            <p className="font-semibold text-red-800">
+              {chequesVencidos.length} cheque{chequesVencidos.length > 1 ? 's' : ''} vencido{chequesVencidos.length > 1 ? 's' : ''} sin cobrar
+            </p>
+            <p className="text-sm text-red-700 mt-0.5">
+              {chequesVencidos.map((ch) => `#${ch.id} — ${formatCurrency(parseDecimal(ch.monto))} (venció ${formatDate(ch.fecha_cobro)})`).join(' · ')}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {chequesPor7d.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-start gap-3">
+          <span className="text-amber-500 text-xl leading-none">⏰</span>
+          <div>
+            <p className="font-semibold text-amber-800">
+              {chequesPor7d.length} cheque{chequesPor7d.length > 1 ? 's' : ''} vence{chequesPor7d.length > 1 ? 'n' : ''} en los próximos 7 días
+            </p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              {chequesPor7d.map((ch) => `#${ch.id} — ${formatCurrency(parseDecimal(ch.monto))} (${formatDate(ch.fecha_cobro)})`).join(' · ')}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">

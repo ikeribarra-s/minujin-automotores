@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { DollarSign, Building2, FileText, CreditCard } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { DollarSign, Building2, FileText, CreditCard, Search } from "lucide-react";
 import { toast } from "sonner";
 import { api, parseDecimal } from "../api";
 import type { Cobro, Venta, Cliente } from "../api";
@@ -19,12 +19,17 @@ const formaPagoIcons = {
 };
 
 export default function Cobros() {
-  const [activeTab, setActiveTab] = useState<'lista' | 'registrar'>('lista');
+  const [activeTab, setActiveTab] = useState<'lista' | 'saldos' | 'registrar'>('lista');
   const [cobros, setCobros] = useState<Cobro[]>([]);
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterVenta, setFilterVenta] = useState<string>('todos');
+  const [filterConcepto, setFilterConcepto] = useState('todos');
+  const [filterFormaPago, setFilterFormaPago] = useState('todos');
+  const [filterDesde, setFilterDesde] = useState('');
+  const [filterHasta, setFilterHasta] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [editingCobro, setEditingCobro] = useState<Cobro | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -52,12 +57,26 @@ export default function Cobros() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredCobros = cobros.filter((cobro) =>
-    filterVenta === 'todos' ? true : cobro.venta_id === parseInt(filterVenta)
-  );
-
   const getCliente = (id: number) => clientes.find((c) => c.id === id);
   const getVenta = (id: number) => ventas.find((v) => v.id === id);
+
+  const filteredCobros = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return [...cobros]
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+      .filter((cobro) => {
+        const cliente = getCliente(cobro.cliente_id);
+        const matchVenta = filterVenta === 'todos' || cobro.venta_id === parseInt(filterVenta);
+        const matchConcepto = filterConcepto === 'todos' || cobro.concepto === filterConcepto;
+        const matchPago = filterFormaPago === 'todos' || cobro.forma_pago === filterFormaPago;
+        const matchDesde = !filterDesde || cobro.fecha >= filterDesde;
+        const matchHasta = !filterHasta || cobro.fecha <= filterHasta + 'T23:59:59';
+        const matchSearch = !q ||
+          cliente?.nombre.toLowerCase().includes(q) ||
+          cliente?.apellido.toLowerCase().includes(q);
+        return matchVenta && matchConcepto && matchPago && matchDesde && matchHasta && matchSearch;
+      });
+  }, [cobros, clientes, filterVenta, filterConcepto, filterFormaPago, filterDesde, filterHasta, searchTerm]);
 
   const handleRegistrarCobro = async () => {
     if (!nuevoCobro.venta_id || !nuevoCobro.monto) {
@@ -111,7 +130,7 @@ export default function Cobros() {
 
       <div className="border-b border-gray-200">
         <div className="flex gap-6">
-          {(['lista', 'registrar'] as const).map((tab) => (
+          {(['lista', 'saldos', 'registrar'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -121,7 +140,7 @@ export default function Cobros() {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'lista' ? 'Lista' : 'Registrar'}
+              {tab === 'lista' ? 'Lista' : tab === 'saldos' ? 'Saldos pendientes' : 'Registrar'}
             </button>
           ))}
         </div>
@@ -129,18 +148,40 @@ export default function Cobros() {
 
       {activeTab === 'lista' && (
         <div className="space-y-4">
-          <Select
-            options={[
-              { value: 'todos', label: 'Todos' },
-              ...ventas.map((v) => ({
-                value: v.id.toString(),
-                label: `Venta #${v.id}`,
-              })),
-            ]}
-            value={filterVenta}
-            onChange={(e) => setFilterVenta(e.target.value)}
-            className="max-w-xs"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Buscar cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]"
+              />
+            </div>
+            <select value={filterConcepto} onChange={(e) => setFilterConcepto(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]">
+              <option value="todos">Todos los conceptos</option>
+              <option value="sena">Seña</option>
+              <option value="saldo">Saldo</option>
+              <option value="cuota">Cuota</option>
+              <option value="otro">Otro</option>
+            </select>
+            <select value={filterFormaPago} onChange={(e) => setFilterFormaPago(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]">
+              <option value="todos">Todas las formas de pago</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="cheque">Cheque</option>
+              <option value="tarjeta">Tarjeta</option>
+            </select>
+            <div className="flex gap-2">
+              <input type="date" value={filterDesde} onChange={(e) => setFilterDesde(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]" title="Desde" />
+              <input type="date" value={filterHasta} onChange={(e) => setFilterHasta(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]" title="Hasta" />
+            </div>
+          </div>
 
           {loading ? (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm divide-y divide-gray-200">
@@ -189,12 +230,74 @@ export default function Cobros() {
                 );
               })}
               {filteredCobros.length === 0 && (
-                <div className="p-8 text-center text-gray-500">No hay cobros registrados</div>
+                <div className="p-8 text-center text-gray-500">
+                  {cobros.length === 0 ? 'No hay cobros registrados' : 'Sin resultados para los filtros aplicados'}
+                </div>
               )}
             </div>
           )}
         </div>
       )}
+
+      {activeTab === 'saldos' && (() => {
+        const saldos = ventas
+          .map((venta) => {
+            const ventaCobros = cobros.filter((c) => c.venta_id === venta.id);
+            const cobrado = ventaCobros.reduce((s, c) => s + parseDecimal(c.monto), 0);
+            const saldo = parseDecimal(venta.precio_final) - cobrado;
+            return { venta, cobrado, saldo };
+          })
+          .filter(({ saldo }) => saldo > 0.01)
+          .sort((a, b) => b.saldo - a.saldo);
+
+        const totalSaldo = saldos.reduce((s, { saldo }) => s + saldo, 0);
+
+        return (
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex justify-between items-center">
+              <p className="font-semibold text-red-800">{saldos.length} venta{saldos.length !== 1 ? 's' : ''} con saldo pendiente</p>
+              <p className="text-xl font-bold text-red-700">{formatCurrency(totalSaldo)}</p>
+            </div>
+            {saldos.length === 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500">
+                Todas las ventas están saldadas
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm divide-y divide-gray-200">
+                {saldos.map(({ venta, cobrado, saldo }) => {
+                  const cliente = clientes.find((c) => c.id === venta.cliente_id);
+                  return (
+                    <div key={venta.id} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">
+                            {cliente ? `${cliente.apellido.toUpperCase()}, ${cliente.nombre}` : `Cliente #${venta.cliente_id}`}
+                          </h3>
+                          <p className="text-sm text-gray-500">Venta #{venta.id} · {formatDate(venta.fecha_venta)}</p>
+                        </div>
+                        <div className="text-sm space-y-0.5">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Precio</span>
+                            <span className="font-medium">{formatCurrency(parseDecimal(venta.precio_final))}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Cobrado</span>
+                            <span className="text-green-700 font-medium">{formatCurrency(cobrado)}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-bold text-red-600">{formatCurrency(saldo)}</p>
+                          <p className="text-xs text-gray-500">pendiente</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {activeTab === 'registrar' && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">

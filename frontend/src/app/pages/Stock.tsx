@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Car, Upload } from "lucide-react";
+import { Car, Upload, Download } from "lucide-react";
 import { toast } from "sonner";
 import { api, uploadFile, parseDecimal } from "../api";
 import type { Vehiculo } from "../api";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, exportCSV } from "../lib/utils";
 import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
 import Input from "../components/Input";
@@ -241,6 +241,30 @@ export default function Stock() {
             onChange={(e) => setFilter(e.target.value)}
             className="max-w-xs"
           />
+
+          <div className="flex justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => exportCSV(`stock_${new Date().toISOString().slice(0,10)}.csv`, filteredVehiculos.map((v) => ({
+                ID: v.id,
+                Marca: v.marca,
+                Modelo: v.modelo,
+                Año: v.anio,
+                Version: v.version ?? '',
+                Color: v.color ?? '',
+                Kilometraje: v.kilometraje,
+                Tipo: v.tipo,
+                Procedencia: v.procedencia,
+                Patente: v.patente ?? '',
+                Estado: v.estado,
+                'Precio Compra': v.precio_compra ?? '',
+                'Precio Venta': v.precio_venta ?? '',
+                Observaciones: v.observaciones ?? '',
+              })))}
+            >
+              <Download className="w-4 h-4 mr-1 inline" /> Exportar CSV
+            </Button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredVehiculos.map((vehiculo) => (

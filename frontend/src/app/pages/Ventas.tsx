@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Search, Download } from "lucide-react";
 import { toast } from "sonner";
 import { api, parseDecimal } from "../api";
 import type { Venta, Vehiculo, Cliente, Cobro } from "../api";
-import { formatCurrency, formatDate } from "../lib/utils";
+import { formatCurrency, formatDate, exportCSV } from "../lib/utils";
 import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
 import Input from "../components/Input";
@@ -20,6 +21,10 @@ export default function Ventas() {
   const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
   const [cobrosVenta, setCobrosVenta] = useState<Venta | null>(null);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterFormaPago, setFilterFormaPago] = useState('todos');
+  const [filterDesde, setFilterDesde] = useState('');
+  const [filterHasta, setFilterHasta] = useState('');
 
   const [nuevaVenta, setNuevaVenta] = useState({
     vehiculo_id: 0,
@@ -50,6 +55,25 @@ export default function Ventas() {
 
   const getVehiculo = (id: number) => vehiculos.find((v) => v.id === id);
   const getCliente = (id: number) => clientes.find((c) => c.id === id);
+
+  const filteredVentas = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return [...ventas]
+      .sort((a, b) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
+      .filter((v) => {
+        const cliente = getCliente(v.cliente_id);
+        const vehiculo = getVehiculo(v.vehiculo_id);
+        const matchSearch = !q ||
+          cliente?.nombre.toLowerCase().includes(q) ||
+          cliente?.apellido.toLowerCase().includes(q) ||
+          vehiculo?.marca.toLowerCase().includes(q) ||
+          vehiculo?.modelo.toLowerCase().includes(q);
+        const matchPago = filterFormaPago === 'todos' || v.forma_pago === filterFormaPago;
+        const matchDesde = !filterDesde || v.fecha_venta >= filterDesde;
+        const matchHasta = !filterHasta || v.fecha_venta <= filterHasta + 'T23:59:59';
+        return matchSearch && matchPago && matchDesde && matchHasta;
+      });
+  }, [ventas, clientes, vehiculos, searchTerm, filterFormaPago, filterDesde, filterHasta]);
 
   const handleRegistrarVenta = async () => {
     if (!nuevaVenta.vehiculo_id || !nuevaVenta.cliente_id || !nuevaVenta.precio_final) {
@@ -122,7 +146,59 @@ export default function Ventas() {
       </div>
 
       {activeTab === 'lista' && (
-        loading ? (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button
+              variant="secondary"
+              onClick={() => exportCSV(`ventas_${new Date().toISOString().slice(0,10)}.csv`, filteredVentas.map((v) => {
+                const cliente = getCliente(v.cliente_id);
+                const vehiculo = getVehiculo(v.vehiculo_id);
+                return {
+                  ID: v.id,
+                  Fecha: formatDate(v.fecha_venta),
+                  Cliente: cliente ? `${cliente.apellido}, ${cliente.nombre}` : v.cliente_id,
+                  Vehiculo: vehiculo ? `${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}` : v.vehiculo_id,
+                  'Precio Final': v.precio_final,
+                  'Forma Pago': v.forma_pago,
+                  Observaciones: v.observaciones ?? '',
+                };
+              }))}
+            >
+              <Download className="w-4 h-4 mr-1 inline" /> Exportar CSV
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="relative md:col-span-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Buscar cliente o vehículo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]"
+              />
+            </div>
+            <select
+              value={filterFormaPago}
+              onChange={(e) => setFilterFormaPago(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]"
+            >
+              <option value="todos">Todas las formas de pago</option>
+              <option value="contado">Contado</option>
+              <option value="financiado">Financiado</option>
+              <option value="permuta">Permuta</option>
+              <option value="mixto">Mixto</option>
+            </select>
+            <div className="flex gap-2">
+              <input type="date" value={filterDesde} onChange={(e) => setFilterDesde(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]" title="Desde" />
+              <input type="date" value={filterHasta} onChange={(e) => setFilterHasta(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B2B]" title="Hasta" />
+            </div>
+          </div>
+
+        {loading ? (
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm divide-y divide-gray-200">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="p-4 animate-pulse">
@@ -133,9 +209,7 @@ export default function Ventas() {
           </div>
         ) : (
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm divide-y divide-gray-200">
-            {[...ventas]
-              .sort((a, b) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
-              .map((venta) => {
+            {filteredVentas.map((venta) => {
                 const vehiculo = getVehiculo(venta.vehiculo_id);
                 const cliente = getCliente(venta.cliente_id);
                 const ventaCobros = cobros.filter((c) => c.venta_id === venta.id);
@@ -181,11 +255,14 @@ export default function Ventas() {
                   </div>
                 );
               })}
-            {ventas.length === 0 && (
-              <div className="p-8 text-center text-gray-500">No hay ventas registradas</div>
+            {filteredVentas.length === 0 && (
+              <div className="p-8 text-center text-gray-500">
+                {ventas.length === 0 ? 'No hay ventas registradas' : 'Sin resultados para los filtros aplicados'}
+              </div>
             )}
           </div>
-        )
+        )}
+        </div>
       )}
 
       {activeTab === 'registrar' && (

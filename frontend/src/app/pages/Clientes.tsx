@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
-import { Phone, MapPin, Search } from "lucide-react";
+import { Phone, MapPin, Search, History } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "../api";
-import type { Cliente } from "../api";
+import { api, parseDecimal } from "../api";
+import type { Cliente, Venta, Vehiculo, Cobro } from "../api";
+import { formatCurrency, formatDate } from "../lib/utils";
+import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import Textarea from "../components/Textarea";
@@ -24,6 +26,12 @@ export default function Clientes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [deletingCliente, setDeletingCliente] = useState<Cliente | null>(null);
+  const [historialCliente, setHistorialCliente] = useState<Cliente | null>(null);
+  const [historialLoading, setHistorialLoading] = useState(false);
+  const [allVentas, setAllVentas] = useState<Venta[]>([]);
+  const [allVehiculos, setAllVehiculos] = useState<Vehiculo[]>([]);
+  const [allCobros, setAllCobros] = useState<Cobro[]>([]);
+  const [historialLoaded, setHistorialLoaded] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState(emptyCliente);
   const [saving, setSaving] = useState(false);
 
@@ -67,6 +75,27 @@ export default function Clientes() {
       toast.error(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleVerHistorial = async (cliente: Cliente) => {
+    setHistorialCliente(cliente);
+    if (historialLoaded) return;
+    setHistorialLoading(true);
+    try {
+      const [v, veh, c] = await Promise.all([
+        api.get('/ventas/'),
+        api.get('/vehiculos/'),
+        api.get('/cobros/'),
+      ]);
+      setAllVentas(v);
+      setAllVehiculos(veh);
+      setAllCobros(c);
+      setHistorialLoaded(true);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setHistorialLoading(false);
     }
   };
 
@@ -181,6 +210,10 @@ export default function Clientes() {
                       )}
                     </div>
                     <div className="flex justify-end gap-2">
+                      <Button variant="secondary" onClick={() => handleVerHistorial(cliente)}>
+                        <History className="w-4 h-4 mr-1 inline" />
+                        Historial
+                      </Button>
                       <Button variant="secondary" onClick={() => setEditingCliente(cliente)}>
                         Editar
                       </Button>
@@ -218,6 +251,91 @@ export default function Clientes() {
           </Button>
         </div>
       )}
+
+      {historialCliente && (() => {
+        const ventas = allVentas.filter((v) => v.cliente_id === historialCliente.id);
+        const totalVentas = ventas.reduce((s, v) => s + parseDecimal(v.precio_final), 0);
+        const totalCobrado = allCobros
+          .filter((c) => ventas.some((v) => v.id === c.venta_id))
+          .reduce((s, c) => s + parseDecimal(c.monto), 0);
+        return (
+          <Modal isOpen={true} onClose={() => setHistorialCliente(null)} title={`Historial — ${historialCliente.apellido.toUpperCase()}, ${historialCliente.nombre}`}>
+            <div className="space-y-4">
+              {historialLoading ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : ventas.length === 0 ? (
+                <p className="text-gray-500 text-sm py-6 text-center">Sin ventas registradas</p>
+              ) : (
+                <div className="space-y-3">
+                  {[...ventas]
+                    .sort((a, b) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
+                    .map((venta) => {
+                      const vehiculo = allVehiculos.find((v) => v.id === venta.vehiculo_id);
+                      const cobros = allCobros.filter((c) => c.venta_id === venta.id);
+                      const cobrado = cobros.reduce((s, c) => s + parseDecimal(c.monto), 0);
+                      const saldo = parseDecimal(venta.precio_final) - cobrado;
+                      return (
+                        <div key={venta.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                          <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {vehiculo ? `${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}` : `Vehículo #${venta.vehiculo_id}`}
+                              </p>
+                              <p className="text-xs text-gray-500">{formatDate(venta.fecha_venta)} · <span className="capitalize">{venta.forma_pago}</span></p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-gray-900">{formatCurrency(parseDecimal(venta.precio_final))}</p>
+                              <StatusBadge status={saldo > 0.01 ? 'pendiente' : 'cobrado'} className="mt-1" />
+                            </div>
+                          </div>
+                          {cobros.length > 0 && (
+                            <div className="divide-y divide-gray-100">
+                              {cobros.map((cobro) => (
+                                <div key={cobro.id} className="px-4 py-2 flex items-center justify-between text-sm">
+                                  <span className="text-gray-600 capitalize">{cobro.concepto} · {cobro.forma_pago} · {formatDate(cobro.fecha)}</span>
+                                  <span className="font-medium text-green-700">{formatCurrency(parseDecimal(cobro.monto))}</span>
+                                </div>
+                              ))}
+                              <div className="px-4 py-2 flex justify-between text-sm font-semibold bg-gray-50">
+                                <span className={saldo > 0.01 ? 'text-red-600' : 'text-green-600'}>
+                                  {saldo > 0.01 ? `Saldo: ${formatCurrency(saldo)}` : 'Pagado'}
+                                </span>
+                                <span className="text-gray-700">Cobrado: {formatCurrency(cobrado)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+              {ventas.length > 0 && (
+                <div className="border-t pt-3 grid grid-cols-3 gap-2 text-sm text-center">
+                  <div>
+                    <p className="text-gray-500">Ventas</p>
+                    <p className="font-bold text-gray-900">{ventas.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Total facturado</p>
+                    <p className="font-bold text-gray-900">{formatCurrency(totalVentas)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Total cobrado</p>
+                    <p className="font-bold text-green-700">{formatCurrency(totalCobrado)}</p>
+                  </div>
+                </div>
+              )}
+              <Button variant="secondary" onClick={() => setHistorialCliente(null)} className="w-full">
+                Cerrar
+              </Button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {deletingCliente && (
         <Modal isOpen={true} onClose={() => setDeletingCliente(null)} title="¿Eliminar cliente?" className="max-w-md">
