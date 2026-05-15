@@ -9,6 +9,7 @@ const navItems = [
   { path: '/ventas', label: 'Ventas' },
   { path: '/cobros', label: 'Cobros' },
   { path: '/cheques', label: 'Cheques' },
+  { path: '/pagares', label: 'Pagarés' },
 ];
 
 export default function Layout() {

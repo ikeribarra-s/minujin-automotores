@@ -44,3 +44,9 @@ class EstadoCheque(str, enum.Enum):
     cobrado = "cobrado"
     rechazado = "rechazado"
     depositado = "depositado"
+
+
+class EstadoPagare(str, enum.Enum):
+    pendiente = "pendiente"
+    cobrado = "cobrado"
+    rechazado = "rechazado"

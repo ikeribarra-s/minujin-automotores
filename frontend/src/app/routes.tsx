@@ -7,6 +7,7 @@ import Clientes from "./pages/Clientes";
 import Ventas from "./pages/Ventas";
 import Cobros from "./pages/Cobros";
 import Cheques from "./pages/Cheques";
+import Pagares from "./pages/Pagares";
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: "ventas", Component: Ventas },
       { path: "cobros", Component: Cobros },
       { path: "cheques", Component: Cheques },
+      { path: "pagares", Component: Pagares },
     ],
   },
 ]);

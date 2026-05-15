@@ -5,5 +5,6 @@ from backend.models.cobro import Cobro
 from backend.models.cheque import Cheque
 from backend.models.permuta import Permuta
 from backend.models.usuario import Usuario
+from backend.models.pagare import Pagare
 
-__all__ = ["Vehiculo", "Cliente", "Venta", "Cobro", "Cheque", "Permuta", "Usuario"]
+__all__ = ["Vehiculo", "Cliente", "Venta", "Cobro", "Cheque", "Permuta", "Usuario", "Pagare"]

@@ -154,6 +154,22 @@ export interface Cheque {
   updated_at: string
 }
 
+export interface Pagare {
+  id: number
+  numero: string
+  monto: string
+  vencimiento: string
+  firmante: string | null
+  calle: string | null
+  localidad: string | null
+  estado: 'pendiente' | 'cobrado' | 'rechazado'
+  observaciones: string | null
+  raw_ocr_text: string | null
+  image_filename: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface ScanResult {
   tipo: string | null
   banco: string | null
