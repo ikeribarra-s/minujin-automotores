@@ -23,6 +23,7 @@ export default function Clientes() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+  const [deletingCliente, setDeletingCliente] = useState<Cliente | null>(null);
   const [nuevoCliente, setNuevoCliente] = useState(emptyCliente);
   const [saving, setSaving] = useState(false);
 
@@ -64,6 +65,25 @@ export default function Clientes() {
       toast.success('Cliente agregado');
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCliente = async () => {
+    if (!deletingCliente) return;
+    setSaving(true);
+    try {
+      await api.delete(`/clientes/${deletingCliente.id}`);
+      setClientes((prev) => prev.filter((c) => c.id !== deletingCliente.id));
+      setDeletingCliente(null);
+      toast.success('Cliente eliminado');
+    } catch (e: any) {
+      if (e.message?.includes('409') || e.message?.toLowerCase().includes('tiene ventas') || e.status === 409) {
+        toast.error('No se puede eliminar: el cliente tiene ventas asociadas');
+      } else {
+        toast.error(e.message);
+      }
     } finally {
       setSaving(false);
     }
@@ -160,9 +180,12 @@ export default function Clientes() {
                         </div>
                       )}
                     </div>
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
                       <Button variant="secondary" onClick={() => setEditingCliente(cliente)}>
                         Editar
+                      </Button>
+                      <Button variant="danger" onClick={() => setDeletingCliente(cliente)}>
+                        Eliminar
                       </Button>
                     </div>
                   </div>
@@ -194,6 +217,27 @@ export default function Clientes() {
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
         </div>
+      )}
+
+      {deletingCliente && (
+        <Modal isOpen={true} onClose={() => setDeletingCliente(null)} title="¿Eliminar cliente?" className="max-w-md">
+          <div className="space-y-4">
+            <p className="text-gray-700">
+              ¿Eliminar a <strong>{deletingCliente.apellido.toUpperCase()}, {deletingCliente.nombre}</strong>?
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-800">Esta acción no se puede deshacer. Fallará si el cliente tiene ventas asociadas.</p>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="danger" onClick={handleDeleteCliente} className="flex-1" disabled={saving}>
+                {saving ? 'Eliminando...' : 'Sí, eliminar'}
+              </Button>
+              <Button variant="secondary" onClick={() => setDeletingCliente(null)} className="flex-1">
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {editingCliente && (
