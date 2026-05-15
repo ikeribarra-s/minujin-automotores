@@ -33,9 +33,22 @@ class ChequeCreate(ChequeBase):
 
 
 class ChequeUpdate(BaseModel):
+    numero: Optional[str] = None
+    banco: Optional[str] = None
+    titular: Optional[str] = None
+    monto: Optional[Decimal] = None
+    fecha_emision: Optional[date] = None
+    fecha_cobro: Optional[date] = None
     estado: Optional[EstadoCheque] = None
     observaciones: Optional[str] = None
     entrega: Optional[str] = None
+    monto_letras: Optional[str] = None
+    pagador_cuit: Optional[str] = None
+    beneficiario: Optional[str] = None
+    sucursal: Optional[str] = None
+    localidad: Optional[str] = None
+    es_cpd: Optional[bool] = None
+    discrepancia_monto: Optional[bool] = None
 
 
 class ChequeResponse(ChequeBase):

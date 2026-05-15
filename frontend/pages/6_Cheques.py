@@ -27,8 +27,75 @@ cobro_opts  = {
     for c in cobros
 }
 
-tab_cartera, tab_escanear, tab_registrar, tab_estado = st.tabs(
-    ["Cartera", "Escanear", "Registrar manual", "Actualizar estado"]
+@st.dialog("Editar cheque", width="large")
+def dialogo_editar_cheque(ch: dict):
+    with st.form("form_edit_cheque"):
+        c1, c2 = st.columns(2)
+        numero = c1.text_input("Número",  value=ch.get("numero") or "")
+        banco  = c2.text_input("Banco",   value=ch.get("banco")  or "")
+
+        c3, c4 = st.columns(2)
+        titular = c3.text_input("Titular",  value=ch.get("titular") or "")
+        entrega = c4.text_input("Entrega",  value=ch.get("entrega") or "")
+
+        c5, c6 = st.columns(2)
+        monto       = c5.number_input("Monto $", min_value=0.01,
+                                       value=float(ch.get("monto") or 0), format="%.2f")
+        estado      = c6.selectbox("Estado", ESTADOS,
+                                    index=ESTADOS.index(ch.get("estado", "pendiente")))
+
+        import datetime as _dt
+        def _d(v):
+            try: return _dt.date.fromisoformat(v) if v else None
+            except: return None
+
+        c7, c8 = st.columns(2)
+        fecha_emision = c7.date_input("Fecha emisión",  value=_d(ch.get("fecha_emision")))
+        fecha_cobro   = c8.date_input("Fecha cobro",    value=_d(ch.get("fecha_cobro")))
+
+        c9, c10 = st.columns(2)
+        es_cpd            = c9.checkbox("CPD (pago diferido)", value=ch.get("es_cpd", False))
+        discrepancia_monto = c10.checkbox("Discrepancia monto", value=ch.get("discrepancia_monto", False))
+
+        monto_letras = st.text_input("Monto en letras", value=ch.get("monto_letras") or "")
+        observaciones = st.text_area("Observaciones",   value=ch.get("observaciones") or "")
+
+        c_save, c_cancel = st.columns(2)
+        guardado  = c_save.form_submit_button("Guardar cambios", use_container_width=True)
+        cancelado = c_cancel.form_submit_button("Cancelar",      use_container_width=True)
+
+    if guardado:
+        try:
+            patch(f"/cheques/{ch['id']}", {
+                "numero":             numero or None,
+                "banco":              banco or None,
+                "titular":            titular or None,
+                "entrega":            entrega or None,
+                "monto":              monto,
+                "estado":             estado,
+                "fecha_emision":      str(fecha_emision) if fecha_emision else None,
+                "fecha_cobro":        str(fecha_cobro)   if fecha_cobro   else None,
+                "es_cpd":             es_cpd,
+                "discrepancia_monto": discrepancia_monto,
+                "monto_letras":       monto_letras or None,
+                "observaciones":      observaciones or None,
+            })
+            st.session_state["cheque_msg"] = "Cheque actualizado"
+            st.rerun()
+        except Exception as e:
+            st.error(str(e))
+    if cancelado:
+        st.rerun()
+
+
+if "ch_edit" in st.session_state:
+    dialogo_editar_cheque(st.session_state["ch_edit"])
+
+if "cheque_msg" in st.session_state:
+    st.success(st.session_state.pop("cheque_msg"))
+
+tab_cartera, tab_escanear, tab_registrar = st.tabs(
+    ["Cartera", "Escanear", "Registrar manual"]
 )
 
 # ── CARTERA ───────────────────────────────────────────────────────────────────
@@ -41,16 +108,42 @@ with tab_cartera:
         st.error(str(e))
         st.stop()
 
-    if cheques:
-        df = pd.DataFrame(cheques)
-        cols = ["id", "numero", "banco", "titular", "entrega", "monto", "fecha_cobro", "estado"]
-        if "es_cpd" in df.columns:
-            cols.append("es_cpd")
-        if "discrepancia_monto" in df.columns:
-            cols.append("discrepancia_monto")
-        st.dataframe(df[cols], use_container_width=True)
-    else:
+    if not cheques:
         st.info("No hay cheques.")
+    else:
+        ESTADO_COLOR = {
+            "pendiente":  "#F59E0B",
+            "depositado": "#3B82F6",
+            "cobrado":    "#22C55E",
+            "rechazado":  "#EF4444",
+        }
+        for ch in cheques:
+            color = ESTADO_COLOR.get(ch["estado"], "#6B7280")
+            c1, c2, c3 = st.columns([4, 2, 1])
+            with c1:
+                entrega_txt = f" · Entrega: {ch['entrega']}" if ch.get("entrega") else ""
+                st.markdown(
+                    f"**{ch['banco']}** N° {ch['numero']}"
+                    f"<br><span style='color:#888;font-size:0.8rem'>"
+                    f"{ch.get('titular') or '—'}{entrega_txt}</span>",
+                    unsafe_allow_html=True,
+                )
+            with c2:
+                st.markdown(
+                    f"**${float(ch['monto']):,.0f}**"
+                    f"<br><span style='color:#888;font-size:0.8rem'>{ch['fecha_cobro']}</span>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f"<span style='color:{color};font-size:0.72rem;font-weight:700;"
+                    f"text-transform:uppercase;letter-spacing:0.05em'>{ch['estado']}</span>",
+                    unsafe_allow_html=True,
+                )
+            with c3:
+                if st.button("Editar", key=f"edit_ch_{ch['id']}", use_container_width=True):
+                    st.session_state["ch_edit"] = ch
+                    st.rerun()
+            st.divider()
 
 # ── ESCANEAR ──────────────────────────────────────────────────────────────────
 with tab_escanear:
@@ -214,45 +307,3 @@ with tab_registrar:
                 except Exception as e:
                     st.error(str(e))
 
-# ── ACTUALIZAR ESTADO ─────────────────────────────────────────────────────────
-with tab_estado:
-    c_id, c_btn = st.columns([3, 1])
-    cheque_id = c_id.number_input("ID del cheque", min_value=1, step=1, key="edit_ch_id")
-    if c_btn.button("Cargar", key="cargar_ch"):
-        try:
-            st.session_state["edit_cheque"] = get(f"/cheques/{cheque_id}")
-        except Exception:
-            st.error("Cheque no encontrado")
-            st.session_state.pop("edit_cheque", None)
-
-    ch = st.session_state.get("edit_cheque")
-    if ch:
-        st.caption(f"Cheque #{ch['id']} — {ch['banco']} N° {ch['numero']} — ${ch['monto']} — vence {ch['fecha_cobro']}")
-        st.caption(f"Estado actual: **{ch['estado']}**")
-
-        with st.form("edit_cheque"):
-            nuevo_estado  = st.selectbox("Nuevo estado", ESTADOS,
-                                          index=ESTADOS.index(ch["estado"]))
-            entrega_edit  = st.text_input("Entrega", value=ch.get("entrega") or "")
-            observaciones = st.text_area("Observaciones", value=ch.get("observaciones") or "")
-
-            c_save, c_cancel = st.columns(2)
-            guardado  = c_save.form_submit_button("Guardar", use_container_width=True)
-            cancelado = c_cancel.form_submit_button("Cancelar", use_container_width=True)
-
-        if guardado:
-            try:
-                patch(f"/cheques/{ch['id']}", {
-                    "estado":         nuevo_estado,
-                    "entrega":        entrega_edit or None,
-                    "observaciones":  observaciones or None,
-                })
-                st.success("Cheque actualizado")
-                st.session_state.pop("edit_cheque", None)
-                st.rerun()
-            except Exception as e:
-                st.error(str(e))
-
-        if cancelado:
-            st.session_state.pop("edit_cheque", None)
-            st.rerun()

@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, timedelta
-from api_client import get
+from api_client import get, patch
 from styles import get_css
 from nav import render_nav
 
@@ -246,6 +246,14 @@ if not df_ventas.empty and not df_vehs.empty:
 st.markdown("---")
 st.markdown("##### Cheques pendientes — próximos 30 días")
 
+ESTADOS_CH = ["pendiente", "cobrado", "depositado", "rechazado"]
+ESTADO_COLOR_CH = {
+    "pendiente":  "#F59E0B",
+    "depositado": "#3B82F6",
+    "cobrado":    "#22C55E",
+    "rechazado":  "#EF4444",
+}
+
 if not df_cheques.empty:
     hoy_ts = pd.Timestamp(hoy)
     lim_ts = pd.Timestamp(hoy + timedelta(days=30))
@@ -254,16 +262,44 @@ if not df_cheques.empty:
     ].copy().sort_values("fecha_cobro")
 
     if not prox.empty:
-        prox["Días"] = (prox["fecha_cobro"] - hoy_ts).dt.days
-        prox["Vence"] = prox["fecha_cobro"].dt.strftime("%d/%m/%Y")
-        prox["Monto"] = prox["monto"].apply(fmt_ars)
-        st.dataframe(
-            prox[["Días", "Vence", "numero", "banco", "titular", "Monto"]].rename(columns={
-                "numero": "N° Cheque", "banco": "Banco", "titular": "Titular",
-            }),
-            use_container_width=True, hide_index=True,
-        )
-        st.caption(f"Total a cobrar en 30 días: **{fmt_ars(prox['monto'].sum())}**")
+        prox["dias"] = (prox["fecha_cobro"] - hoy_ts).dt.days
+        st.caption(f"Total a cobrar: **{fmt_ars(prox['monto'].sum())}**")
+
+        for _, row in prox.head(4).iterrows():
+            ch_id = int(row["id"])
+            color = ESTADO_COLOR_CH.get(row["estado"], "#6B7280")
+            dias  = int(row["dias"])
+            dias_txt = f"{dias}d" if dias > 0 else "hoy"
+
+            c1, c2, c3, c4 = st.columns([1, 3, 2, 2])
+            c1.markdown(
+                f"<div style='text-align:center;padding-top:6px;"
+                f"font-size:1.1rem;font-weight:800;color:"
+                f"{'#EF4444' if dias <= 3 else '#F59E0B' if dias <= 7 else '#9CA3AF'}'>"
+                f"{dias_txt}</div>",
+                unsafe_allow_html=True,
+            )
+            c2.markdown(
+                f"**{row['banco']}** N° {row['numero']}<br>"
+                f"<span style='color:#888;font-size:0.8rem'>"
+                f"{row.get('titular') or '—'} · {row['fecha_cobro'].strftime('%d/%m/%Y')}</span>",
+                unsafe_allow_html=True,
+            )
+            nuevo_estado = c3.selectbox(
+                "", ESTADOS_CH,
+                index=ESTADOS_CH.index(row["estado"]),
+                key=f"dash_ch_{ch_id}_est",
+                label_visibility="collapsed",
+            )
+            if c4.button("Guardar", key=f"dash_ch_{ch_id}_btn", use_container_width=True):
+                try:
+                    patch(f"/cheques/{ch_id}", {"estado": nuevo_estado})
+                    st.rerun()
+                except Exception as e:
+                    st.error(str(e))
+
+        if len(prox) > 4:
+            st.caption(f"+ {len(prox) - 4} cheques más — ver todos en la sección Cheques.")
     else:
         st.success("No hay cheques venciendo en los próximos 30 días.")
 else:
