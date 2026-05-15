@@ -84,30 +84,26 @@ with tab_registrar:
 with tab_editar:
     st.caption("Solo se pueden modificar precio, forma de pago y observaciones.")
 
-    c_id, c_btn = st.columns([3, 1])
-    edit_id = c_id.number_input("ID de la venta", min_value=1, step=1, key="edit_vta_id")
-    if c_btn.button("Cargar", key="cargar_vta"):
-        try:
-            st.session_state["edit_venta"] = get(f"/ventas/{edit_id}")
-        except Exception:
-            st.error("Venta no encontrada")
-            st.session_state.pop("edit_venta", None)
+    if not ventas:
+        st.info("No hay ventas registradas.")
+    else:
+        venta_opts = {
+            f"#{v['id']} · {cliente_map.get(v['cliente_id'], '?')} · ${float(v['precio_final']):,.0f} · {v['fecha_venta']}": v
+            for v in ventas
+        }
+        sel_label = st.selectbox("Seleccionar venta", list(venta_opts.keys()))
+        vta = venta_opts[sel_label]
 
-    vta = st.session_state.get("edit_venta")
-    if vta:
-        cliente_label = cliente_map.get(vta["cliente_id"], f"ID {vta['cliente_id']}")
-        st.caption(f"Editando venta #{vta['id']} — Cliente: {cliente_label} — Vehículo ID: {vta['vehiculo_id']}")
+        st.caption(f"Vehículo #{vta['vehiculo_id']} · {vta['forma_pago']}")
 
         with st.form("edit_venta"):
             precio_final  = st.number_input("Precio final", min_value=0.01,
                                             value=float(vta["precio_final"]), format="%.2f")
             forma_pago    = st.selectbox("Forma de pago", FORMAS_PAGO,
                                          index=FORMAS_PAGO.index(vta["forma_pago"]))
-            observaciones = st.text_area("Observaciones", value=vta["observaciones"] or "")
+            observaciones = st.text_area("Observaciones", value=vta.get("observaciones") or "")
 
-            c_save, c_cancel = st.columns(2)
-            guardado  = c_save.form_submit_button("Guardar cambios", use_container_width=True)
-            cancelado = c_cancel.form_submit_button("Cancelar",       use_container_width=True)
+            guardado = st.form_submit_button("Guardar cambios", use_container_width=True)
 
         if guardado:
             try:
@@ -117,11 +113,6 @@ with tab_editar:
                     "observaciones": observaciones or None,
                 })
                 st.success("Venta actualizada")
-                st.session_state.pop("edit_venta", None)
                 st.rerun()
             except Exception as e:
                 st.error(str(e))
-
-        if cancelado:
-            st.session_state.pop("edit_venta", None)
-            st.rerun()

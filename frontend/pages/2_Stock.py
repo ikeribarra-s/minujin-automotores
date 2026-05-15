@@ -105,8 +105,69 @@ def dialogo_eliminar(v: dict):
         st.rerun()
 
 
+@st.dialog("Editar vehículo", width="large")
+def dialogo_editar(v: dict):
+    nueva_foto = st.file_uploader("Reemplazar foto", type=["jpg", "jpeg", "png", "webp"],
+                                   key=f"foto_edit_{v['id']}")
+    with st.form("form_edit_veh_dlg"):
+        c1, c2, c3 = st.columns(3)
+        marca   = c1.text_input("Marca *",  value=v["marca"])
+        modelo  = c2.text_input("Modelo *", value=v["modelo"])
+        anio    = c3.number_input("Año *", min_value=1950, max_value=2100, value=v["anio"])
+
+        c4, c5, c6 = st.columns(3)
+        version     = c4.text_input("Versión",      value=v["version"]     or "")
+        color       = c5.text_input("Color",         value=v["color"]       or "")
+        km          = c6.number_input("Kilometraje", min_value=0,           value=v["kilometraje"] or 0)
+
+        c7, c8, c9 = st.columns(3)
+        tipo        = c7.selectbox("Tipo",        TIPOS,       index=TIPOS.index(v["tipo"]))
+        procedencia = c8.selectbox("Procedencia", PROCEDENCIA, index=PROCEDENCIA.index(v["procedencia"]))
+        patente     = c9.text_input("Patente",     value=v["patente"]      or "")
+
+        c10, c11, c12 = st.columns(3)
+        precio_compra = c10.number_input("Precio compra", min_value=0.0,
+                                          value=float(v["precio_compra"] or 0), format="%.2f")
+        precio_venta  = c11.number_input("Precio venta",  min_value=0.0,
+                                          value=float(v["precio_venta"]  or 0), format="%.2f")
+        estado        = c12.selectbox("Estado", ESTADOS, index=ESTADOS.index(v["estado"]))
+
+        observaciones = st.text_area("Observaciones", value=v["observaciones"] or "")
+
+        c_save, c_cancel = st.columns(2)
+        guardado  = c_save.form_submit_button("Guardar cambios", use_container_width=True)
+        cancelado = c_cancel.form_submit_button("Cancelar",      use_container_width=True)
+
+    if guardado:
+        try:
+            put(f"/vehiculos/{v['id']}", {
+                "marca": marca, "modelo": modelo, "anio": anio,
+                "version": version or None, "color": color or None,
+                "kilometraje": km, "tipo": tipo, "procedencia": procedencia,
+                "patente": patente or None,
+                "precio_compra": precio_compra or None,
+                "precio_venta":  precio_venta  or None,
+                "estado": estado,
+                "observaciones": observaciones or None,
+            })
+            if nueva_foto:
+                upload_file(f"/vehiculos/{v['id']}/foto",
+                            nueva_foto.getvalue(), nueva_foto.name, nueva_foto.type)
+            st.session_state.pop("veh_edit", None)
+            st.session_state["stock_msg"] = ("success", "Vehículo actualizado")
+            st.rerun()
+        except Exception as e:
+            st.error(str(e))
+    if cancelado:
+        st.session_state.pop("veh_edit", None)
+        st.rerun()
+
+
 if "veh_delete" in st.session_state:
     dialogo_eliminar(st.session_state["veh_delete"])
+
+if "veh_edit" in st.session_state:
+    dialogo_editar(st.session_state["veh_edit"])
 
 if "stock_msg" in st.session_state:
     lvl, msg = st.session_state.pop("stock_msg")
@@ -148,59 +209,6 @@ with tab_lista:
                 with col:
                     render_card(v)
 
-    # Inline edit form (shown when a card's Editar is clicked)
-    veh = st.session_state.get("veh_edit")
-    if veh:
-        st.divider()
-        hdr, close_btn = st.columns([5, 1])
-        hdr.subheader(f"Editando — {veh['marca']} {veh['modelo']} {veh['anio']}")
-        if close_btn.button("✕ Cerrar", key="close_edit"):
-            st.session_state.pop("veh_edit", None)
-            st.rerun()
-
-        with st.form("form_edit_veh"):
-            c1, c2, c3 = st.columns(3)
-            marca   = c1.text_input("Marca *",   value=veh["marca"])
-            modelo  = c2.text_input("Modelo *",  value=veh["modelo"])
-            anio    = c3.number_input("Año *", min_value=1950, max_value=2100, value=veh["anio"])
-
-            c4, c5, c6 = st.columns(3)
-            version     = c4.text_input("Versión",     value=veh["version"] or "")
-            color       = c5.text_input("Color",        value=veh["color"]   or "")
-            km          = c6.number_input("Kilometraje", min_value=0, value=veh["kilometraje"] or 0)
-
-            c7, c8, c9 = st.columns(3)
-            tipo        = c7.selectbox("Tipo",        TIPOS,       index=TIPOS.index(veh["tipo"]))
-            procedencia = c8.selectbox("Procedencia", PROCEDENCIA, index=PROCEDENCIA.index(veh["procedencia"]))
-            patente     = c9.text_input("Patente", value=veh["patente"] or "", help="AB 123 CD  ó  ABC 123")
-
-            c10, c11, c12 = st.columns(3)
-            precio_compra = c10.number_input("Precio compra", min_value=0.0,
-                                              value=float(veh["precio_compra"] or 0), format="%.2f")
-            precio_venta  = c11.number_input("Precio venta",  min_value=0.0,
-                                              value=float(veh["precio_venta"]  or 0), format="%.2f")
-            estado        = c12.selectbox("Estado", ESTADOS, index=ESTADOS.index(veh["estado"]))
-
-            observaciones = st.text_area("Observaciones", value=veh["observaciones"] or "")
-            guardado = st.form_submit_button("Guardar cambios", use_container_width=True)
-
-        if guardado:
-            try:
-                put(f"/vehiculos/{veh['id']}", {
-                    "marca": marca, "modelo": modelo, "anio": anio,
-                    "version": version or None, "color": color or None,
-                    "kilometraje": km, "tipo": tipo, "procedencia": procedencia,
-                    "patente": patente or None,
-                    "precio_compra": precio_compra or None,
-                    "precio_venta":  precio_venta  or None,
-                    "estado": estado,
-                    "observaciones": observaciones or None,
-                })
-                st.session_state.pop("veh_edit", None)
-                st.session_state["stock_msg"] = ("success", "Vehículo actualizado")
-                st.rerun()
-            except Exception as e:
-                st.error(str(e))
 
 # ── AGREGAR ───────────────────────────────────────────────────────────────────
 with tab_agregar:
