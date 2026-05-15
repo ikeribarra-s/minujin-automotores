@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { api, parseDecimal } from "../api";
-import type { Venta, Vehiculo, Cliente } from "../api";
+import type { Venta, Vehiculo, Cliente, Cobro } from "../api";
 import { formatCurrency, formatDate } from "../lib/utils";
 import StatusBadge from "../components/StatusBadge";
 import Button from "../components/Button";
@@ -15,8 +15,10 @@ export default function Ventas() {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [cobros, setCobros] = useState<Cobro[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
+  const [cobrosVenta, setCobrosVenta] = useState<Venta | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [nuevaVenta, setNuevaVenta] = useState({
@@ -32,11 +34,13 @@ export default function Ventas() {
       api.get('/ventas/'),
       api.get('/vehiculos/'),
       api.get('/clientes/'),
+      api.get('/cobros/'),
     ])
-      .then(([v, veh, c]) => {
+      .then(([v, veh, c, co]) => {
         setVentas(v);
         setVehiculos(veh);
         setClientes(c);
+        setCobros(co);
       })
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false));
@@ -134,6 +138,9 @@ export default function Ventas() {
               .map((venta) => {
                 const vehiculo = getVehiculo(venta.vehiculo_id);
                 const cliente = getCliente(venta.cliente_id);
+                const ventaCobros = cobros.filter((c) => c.venta_id === venta.id);
+                const totalCobrado = ventaCobros.reduce((sum, c) => sum + parseDecimal(c.monto), 0);
+                const saldo = parseDecimal(venta.precio_final) - totalCobrado;
                 return (
                   <div key={venta.id} className="p-4 hover:bg-gray-50 transition-colors">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
@@ -154,8 +161,18 @@ export default function Ventas() {
                           {formatCurrency(parseDecimal(venta.precio_final))}
                         </p>
                         <StatusBadge status={venta.forma_pago} className="mt-2" />
+                        {ventaCobros.length > 0 && (
+                          <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+                            <p>Cobrado: <span className="text-green-700 font-medium">{formatCurrency(totalCobrado)}</span></p>
+                            {saldo > 0.01 && <p>Saldo: <span className="text-red-600 font-medium">{formatCurrency(saldo)}</span></p>}
+                            {saldo <= 0.01 && <p className="text-green-600 font-medium">Pagado</p>}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="secondary" onClick={() => setCobrosVenta(venta)}>
+                          Cobros {ventaCobros.length > 0 && `(${ventaCobros.length})`}
+                        </Button>
                         <Button variant="secondary" onClick={() => setEditingVenta(venta)}>
                           Editar
                         </Button>
@@ -232,6 +249,62 @@ export default function Ventas() {
           </Button>
         </div>
       )}
+
+      {cobrosVenta && (() => {
+        const ventaCobros = cobros.filter((c) => c.venta_id === cobrosVenta.id);
+        const totalCobrado = ventaCobros.reduce((sum, c) => sum + parseDecimal(c.monto), 0);
+        const saldo = parseDecimal(cobrosVenta.precio_final) - totalCobrado;
+        const vehiculo = getVehiculo(cobrosVenta.vehiculo_id);
+        const cliente = getCliente(cobrosVenta.cliente_id);
+        return (
+          <Modal isOpen={true} onClose={() => setCobrosVenta(null)} title="Cobros de la venta">
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
+                {vehiculo ? `${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.anio}` : `Vehículo #${cobrosVenta.vehiculo_id}`}
+                {' · '}
+                {cliente ? `${cliente.apellido}, ${cliente.nombre}` : `Cliente #${cobrosVenta.cliente_id}`}
+                {' · '}
+                {formatCurrency(parseDecimal(cobrosVenta.precio_final))}
+              </div>
+              {ventaCobros.length === 0 ? (
+                <p className="text-gray-500 text-sm py-4 text-center">No hay cobros registrados para esta venta</p>
+              ) : (
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+                  {ventaCobros.map((cobro) => (
+                    <div key={cobro.id} className="flex items-center justify-between p-3 text-sm">
+                      <div>
+                        <p className="font-medium text-gray-900">{formatCurrency(parseDecimal(cobro.monto))}</p>
+                        <p className="text-gray-500">{formatDate(cobro.fecha)} · {cobro.concepto} · {cobro.forma_pago}</p>
+                        {cobro.observaciones && <p className="text-gray-400">{cobro.observaciones}</p>}
+                      </div>
+                      <StatusBadge status={cobro.concepto} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="border-t pt-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Precio venta</span>
+                  <span className="font-medium">{formatCurrency(parseDecimal(cobrosVenta.precio_final))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total cobrado</span>
+                  <span className="font-medium text-green-700">{formatCurrency(totalCobrado)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span>Saldo pendiente</span>
+                  <span className={saldo > 0.01 ? 'text-red-600' : 'text-green-600'}>
+                    {saldo > 0.01 ? formatCurrency(saldo) : 'Pagado'}
+                  </span>
+                </div>
+              </div>
+              <Button variant="secondary" onClick={() => setCobrosVenta(null)} className="w-full">
+                Cerrar
+              </Button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {editingVenta && (
         <Modal isOpen={true} onClose={() => setEditingVenta(null)} title="Editar venta">

@@ -132,6 +132,23 @@ export default function Stock() {
     }
   };
 
+  const handleToggleReserva = async (vehiculo: Vehiculo) => {
+    const nuevoEstado = vehiculo.estado === 'disponible' ? 'reservado' : 'disponible';
+    try {
+      const { id, created_at, updated_at, fecha_ingreso, foto_url, ...rest } = vehiculo;
+      const updated = await api.put(`/vehiculos/${id}`, {
+        ...rest,
+        precio_compra: rest.precio_compra ? parseFloat(rest.precio_compra) : null,
+        precio_venta: rest.precio_venta ? parseFloat(rest.precio_venta) : null,
+        estado: nuevoEstado,
+      }) as Vehiculo;
+      setVehiculos((prev) => prev.map((v) => (v.id === id ? updated : v)));
+      toast.success(nuevoEstado === 'reservado' ? 'Vehículo reservado' : 'Vehículo liberado');
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const handleUploadFoto = async () => {
     if (!fotoFile || !fotoVehiculoId) return;
     setUploadingFoto(true);
@@ -259,9 +276,20 @@ export default function Stock() {
                   <Button variant="secondary" className="flex-1" onClick={() => { setEditingVehiculo(vehiculo); setEditFotoFile(null); }}>
                     Editar
                   </Button>
-                  <Button variant="danger" className="flex-1" onClick={() => setDeletingVehiculo(vehiculo)}>
-                    Eliminar
-                  </Button>
+                  {vehiculo.estado !== 'vendido' && (
+                    <Button
+                      variant={vehiculo.estado === 'disponible' ? 'secondary' : 'secondary'}
+                      className={`flex-1 ${vehiculo.estado === 'reservado' ? 'text-amber-700 border-amber-300 hover:bg-amber-50' : ''}`}
+                      onClick={() => handleToggleReserva(vehiculo)}
+                    >
+                      {vehiculo.estado === 'disponible' ? 'Reservar' : 'Liberar'}
+                    </Button>
+                  )}
+                  {vehiculo.estado === 'disponible' && (
+                    <Button variant="danger" className="flex-1" onClick={() => setDeletingVehiculo(vehiculo)}>
+                      Eliminar
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
